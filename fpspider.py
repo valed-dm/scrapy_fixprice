@@ -20,7 +20,9 @@ logging.basicConfig(
 class GoodsSpiderSelenium(scrapy.Spider):
     name = "goods_selenium"
     start_urls = [
+        # "https://fix-price.com/catalog/produkty-i-napitki/konditerskie-izdeliya"
         "https://fix-price.com/catalog/kosmetika-i-gigiena/ukhod-za-polostyu-rta",
+        # "https://fix-price.com/catalog/sad-i-ogorod/tovary-dlya-rassady-i-semena",
     ]
 
     def __init__(self, *args, **kwargs):
@@ -76,49 +78,91 @@ class GoodsSpiderSelenium(scrapy.Spider):
             )
 
     def parse_details(self, response):
+        discount_value = 0
+        special_price_value = None
+        regular_price_value = None
+
+        rpc = response.meta.get("RPC")
+        link = response.meta.get("link")
+        title = response.meta.get("title")
+        variants = response.meta.get("variants")
+
+        # Scrapy extraction
+        brand = response.xpath("//a[contains(@href, 'products?brand=')]/text()").get()
+        description = response.css("div.product-details div.description::text").get()
+        marketing_tag = response.css("div.product-images div.sticker::text").get()
+
+        # Selenium for dynamic content
         self.driver.get(response.url)
-        time.sleep(10)
+
+        # Clear cache to ensure fresh data
+        self.driver.execute_script("window.localStorage.clear();")
+        self.driver.execute_script("window.sessionStorage.clear();")
+        self.driver.delete_all_cookies()
+
+        time.sleep(20)
 
         try:
-            brand = self.driver.find_element(By.XPATH, "//a[contains(@href, 'products?brand=')]")
-            brand = brand.text or "Unknown brand"
-        except NoSuchElementException as e:
-            brand = None
-            logging.error(f"Error finding brand: {e}")
-
-        try:
-            description = self.driver.find_element(
+            special_price_element = self.driver.find_element(
                 By.CSS_SELECTOR,
-                "div.product-details div.description"
-            ).text
-        except NoSuchElementException as e:
-            description = None
-            logging.error(f"Error finding description: {e}")
-
-        try:
-            special_price = self.driver.find_element(By.CSS_SELECTOR, "div.prices div.special-price").text
+                "div.price-in-cart div.special-price"
+            )
+            if special_price_element.is_displayed():
+                special_price = special_price_element.text
+            else:
+                special_price = None
         except NoSuchElementException as e:
             special_price = None
             logging.error(f"Error finding special_price: {e}")
 
         try:
-            regular_price = self.driver.find_element(By.CSS_SELECTOR, "div.prices div.regular-price").text
+            regular_price = self.driver.find_element(
+                By.CSS_SELECTOR,
+                "div.price-in-cart div.regular-price"
+            ).text
         except NoSuchElementException as e:
             regular_price = None
             logging.error(f"Error finding regular_price: {e}")
 
+        if special_price:
+            special_price_value = round(float(
+                special_price.replace('₽', '').replace(',', '.').strip()
+            ), 2)
+        if regular_price:
+            regular_price_value = round(float(
+                regular_price.replace('₽', '').replace(',', '.').strip()
+            ), 2)
+
+        # Validate that prices make sense
+        if special_price_value and regular_price_value:
+            if special_price_value >= regular_price_value:
+                logging.warning(
+                    f"Special price {special_price} is not less than regular price {regular_price},"
+                    f"is replaced with {regular_price_value}")
+                special_price_value = regular_price_value
+            else:
+                cash_discount = regular_price_value - special_price_value
+                discount_value = round(cash_discount / regular_price_value * 100)
+
+        # Log the prices for debugging purposes
+        logging.info(f"Scraped Prices - "
+                     f"Regular Price: {regular_price}, "
+                     f"Special Price: {special_price}, "
+                     f"Discount Value: {discount_value}"
+                     )
+
         yield {
             "timestamp": int(time.time()),
-            "RPC": response.meta["RPC"],
-            "url": response.meta["link"],
-            "title": response.meta["title"],
-            "marketing_tags": "str",
+            "RPC": rpc,
+            "url": link,
+            "title": title,
+            "marketing_tags": marketing_tag,
             "brand": brand,
             "section": "str",
             "price_data": {
-                "current": special_price if special_price else regular_price,
-                "original": regular_price,
-                "sale_tag": "Скидка {}%"
+                "current": special_price_value,
+                "original": regular_price_value,
+                "sale_tag": f"Скидка {discount_value}%"
             },
             "stock": {
                 "in_stock": "bool",
@@ -134,7 +178,7 @@ class GoodsSpiderSelenium(scrapy.Spider):
                 "__description": description,
                 "KEY": "str",
             },
-            "variants": response.meta["variants"],
+            "variants": variants,
         }
 
     def closed(self, reason):

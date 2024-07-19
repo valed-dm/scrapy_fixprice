@@ -2,12 +2,8 @@ import logging
 import time
 
 import scrapy
-from selenium import webdriver
-from selenium.common import NoSuchElementException
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
+from playwright.async_api import Page
+from scrapy_playwright.page import PageMethod
 
 logging.basicConfig(
     filename='scrapy_spider.log',
@@ -17,7 +13,7 @@ logging.basicConfig(
 )
 
 
-class GoodsSpiderSelenium(scrapy.Spider):
+class MySpider(scrapy.Spider):
     name = "fpspider"
     start_urls = [
         # "https://fix-price.com/catalog/produkty-i-napitki/konditerskie-izdeliya"
@@ -25,43 +21,37 @@ class GoodsSpiderSelenium(scrapy.Spider):
         # "https://fix-price.com/catalog/sad-i-ogorod/tovary-dlya-rassady-i-semena",
     ]
 
-    def __init__(self, *args, **kwargs):
-        super(GoodsSpiderSelenium, self).__init__(*args, **kwargs)
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")  # Run in headless mode
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
-        chrome_options.add_argument(
-            "user-agent=Mozilla/5.0 "
-            "(Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 "
-            "(KHTML, like Gecko) "
-            "Chrome/91.0.4472.124 "
-            "Safari/537.36"
-        )
-
-        self.driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
-
-        self.driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-            'source': '''
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                })
-            '''
-        })
-
     def start_requests(self):
         for url in self.start_urls:
-            yield scrapy.Request(url=url, callback=self.parse)
+            yield scrapy.Request(
+                url=url,
+                callback=self.parse,
+                meta={
+                    "playwright": True,
+                    "playwright_include_page": True,
+                    "playwright_page_methods": [
+                        # PageMethod('route', "**/*.{png,jpg,jpeg,gif}", lambda route: route.abort()),
+                        # PageMethod('route', self.block_trackers),
+                        # PageMethod('goto', url),
+                    ],
+                },
+                # meta=dict(
+                #     playwright=True,
+                #     playwright_include_page=True,
+                #     playwright_page_methods=[
+                #         # PageMethod('route', "**/*.{png,jpg,jpeg,gif}", lambda route: route.abort()),
+                #         # PageMethod('route', self.block_trackers),
+                #         # PageMethod('goto', url),
+                #     ]
+                # ),
+                errback=self.errback_close_page,
+            )
 
-    def parse(self, response):
+    async def parse(self, response):
+        page: Page = response.meta["playwright_page"]
         products = response.css("div.product__wrapper")
         for product in products:
             pid = product.css("div.product.one-product-in-row::attr(id)").get()
-            rpc = pid[2:]
             link = product.css("a.title::attr(href)").get()
             title = product.css("a.title::text").get()
             vcount = product.css("div.variants-count::text").get()
@@ -70,94 +60,91 @@ class GoodsSpiderSelenium(scrapy.Spider):
                 url=response.urljoin(link),
                 callback=self.parse_details,
                 meta={
-                    "RPC": rpc,
+                    "playwright": True,
+                    "playwright_include_page": True,
+                    "playwright_page": page,
+                    "RPC": pid[2:],
                     "link": link,
                     "title": title,
                     "variants": vcount if vcount else None,
-                }
+                },
+                errback=self.errback_close_page,
             )
 
-    def parse_details(self, response):
-        discount_value = 0
+    async def parse_details(self, response):
+        page: Page = response.meta["playwright_page"]
+
+        try:
+            brand = await page.query_selector("a[href*='products?brand=']")
+            brand_text = await brand.inner_text() if brand else "Unknown brand"
+        except Exception as e:
+            brand_text = None
+            self.logger.error(f"Error finding brand: {e}")
+
+        try:
+            description = await page.query_selector("div.product-details div.description")
+            description_text = await description.inner_text() if description else None
+        except Exception as e:
+            description_text = None
+            self.logger.error(f"Error finding description: {e}")
+
+        try:
+            marketing_tag = await page.query_selector("div.product-images div.sticker")
+            marketing_tag_text = await marketing_tag.inner_text() if marketing_tag else None
+        except Exception as e:
+            marketing_tag_text = None
+            self.logger.error(f"Error finding marketing tag: {e}")
+
+        try:
+            special_price = await page.query_selector("div.prices div.special-price")
+            special_price_text = await special_price.inner_text() if special_price else None
+        except Exception as e:
+            special_price_text = None
+            self.logger.error(f"Error finding special price: {e}")
+
+        try:
+            regular_price = await page.query_selector("div.prices div.regular-price")
+            regular_price_text = await regular_price.inner_text() if regular_price else None
+        except Exception as e:
+            regular_price_text = None
+            self.logger.error(f"Error finding regular price: {e}")
+
         special_price_value = None
         regular_price_value = None
+        discount_value = 0
 
-        rpc = response.meta.get("RPC")
-        link = response.meta.get("link")
-        title = response.meta.get("title")
-        variants = response.meta.get("variants")
-
-        # Scrapy extraction
-        brand = response.xpath("//a[contains(@href, 'products?brand=')]/text()").get()
-        description = response.css("div.product-details div.description::text").get()
-        marketing_tag = response.css("div.product-images div.sticker::text").get()
-
-        # Selenium for dynamic content
-        self.driver.get(response.url)
-
-        # Clear cache to ensure fresh data
-        self.driver.execute_script("window.localStorage.clear();")
-        self.driver.execute_script("window.sessionStorage.clear();")
-        self.driver.delete_all_cookies()
-
-        time.sleep(20)
-
-        try:
-            special_price_element = self.driver.find_element(
-                By.CSS_SELECTOR,
-                "div.price-in-cart div.special-price"
-            )
-            if special_price_element.is_displayed():
-                special_price = special_price_element.text
-            else:
-                special_price = None
-        except NoSuchElementException as e:
-            special_price = None
-            logging.error(f"Error finding special_price: {e}")
-
-        try:
-            regular_price = self.driver.find_element(
-                By.CSS_SELECTOR,
-                "div.price-in-cart div.regular-price"
-            ).text
-        except NoSuchElementException as e:
-            regular_price = None
-            logging.error(f"Error finding regular_price: {e}")
-
-        if special_price:
+        if special_price_text:
             special_price_value = round(float(
-                special_price.replace('₽', '').replace(',', '.').strip()
-            ), 2)
-        if regular_price:
-            regular_price_value = round(float(
-                regular_price.replace('₽', '').replace(',', '.').strip()
+                special_price_text.replace('₽', '').replace(',', '.').strip()
             ), 2)
 
-        # Validate that prices make sense
+        if regular_price_text:
+            regular_price_value = round(float(
+                regular_price_text.replace('₽', '').replace(',', '.').strip()
+            ), 2)
+
         if special_price_value and regular_price_value:
             if special_price_value >= regular_price_value:
-                logging.warning(
-                    f"Special price {special_price} is not less than regular price {regular_price},"
-                    f"is replaced with {regular_price_value}")
                 special_price_value = regular_price_value
+                self.logger.warning(
+                    f"Special price {special_price_text} is not less than regular price {regular_price_text},"
+                    f" is replaced with {regular_price_text}")
             else:
                 cash_discount = regular_price_value - special_price_value
                 discount_value = round(cash_discount / regular_price_value * 100)
 
-        # Log the prices for debugging purposes
-        logging.info(f"Scraped Prices - "
-                     f"Regular Price: {regular_price}, "
-                     f"Special Price: {special_price}, "
-                     f"Discount Value: {discount_value}"
-                     )
+        self.logger.info(f"Scraped Prices - "
+                         f"Regular Price: {regular_price_text}, "
+                         f"Special Price: {special_price_text}, "
+                         f"Discount Value: {discount_value}")
 
         yield {
             "timestamp": int(time.time()),
-            "RPC": rpc,
-            "url": link,
-            "title": title,
-            "marketing_tags": marketing_tag,
-            "brand": brand,
+            "RPC": response.meta.get("RPC"),
+            "url": response.meta.get("link"),
+            "title": response.meta.get("title"),
+            "marketing_tags": marketing_tag_text,
+            "brand": brand_text,
             "section": "str",
             "price_data": {
                 "current": special_price_value,
@@ -175,11 +162,32 @@ class GoodsSpiderSelenium(scrapy.Spider):
                 "video": "str",
             },
             "metadata": {
-                "__description": description,
+                "__description": description_text,
                 "KEY": "str",
             },
-            "variants": variants,
+            "variants": response.meta.get("variants"),
         }
 
-    def closed(self, reason):
-        self.driver.quit()
+    async def errback_close_page(self, failure):
+        page: Page = failure.request.meta.get("playwright_page")
+        if page:
+            await page.close()
+
+    async def block_trackers(self, route):
+        url = route.request.url
+        if any(tracker in str(url) for tracker in [
+            # "google-analytics.com",
+            # "googletagmanager.com",
+            # "facebook.net",
+            # "facebook.com",
+            # "doubleclick.net",
+            # "adsbygoogle.js",
+            # "adservice.google.com",
+            # "tracking_domain_1.com",
+            # "tracking_domain_2.com",
+            "top-fwz1.mail.ru",
+            "mc.yandex.ru",
+        ]):
+            await route.abort()
+        else:
+            await route.continue_()

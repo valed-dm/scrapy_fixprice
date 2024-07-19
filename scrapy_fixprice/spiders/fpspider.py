@@ -72,9 +72,14 @@ class MySpider(scrapy.Spider):
             )
 
     async def parse_details(self, response):
+        element_timeout = 10000
+
         page: Page = response.meta["playwright_page"]
+        # await page.wait_for_selector("div.product__wrapper", timeout=element_timeout * 2)
+        # self.logger.info("Page loaded, starting to extract details.")
 
         try:
+            await page.wait_for_selector("a[href*='products?brand=']", timeout=element_timeout)
             brand = await page.query_selector("a[href*='products?brand=']")
             brand_text = await brand.inner_text() if brand else "Unknown brand"
         except Exception as e:
@@ -82,6 +87,7 @@ class MySpider(scrapy.Spider):
             self.logger.error(f"Error finding brand: {e}")
 
         try:
+            await page.wait_for_selector("div.product-details div.description", timeout=element_timeout)
             description = await page.query_selector("div.product-details div.description")
             description_text = await description.inner_text() if description else None
         except Exception as e:
@@ -89,6 +95,7 @@ class MySpider(scrapy.Spider):
             self.logger.error(f"Error finding description: {e}")
 
         try:
+            await page.wait_for_selector("div.product-images div.sticker", timeout=element_timeout)
             marketing_tag = await page.query_selector("div.product-images div.sticker")
             marketing_tag_text = await marketing_tag.inner_text() if marketing_tag else None
         except Exception as e:
@@ -96,6 +103,7 @@ class MySpider(scrapy.Spider):
             self.logger.error(f"Error finding marketing tag: {e}")
 
         try:
+            await page.wait_for_selector("div.prices div.special-price", timeout=element_timeout)
             special_price = await page.query_selector("div.prices div.special-price")
             special_price_text = await special_price.inner_text() if special_price else None
         except Exception as e:
@@ -103,6 +111,7 @@ class MySpider(scrapy.Spider):
             self.logger.error(f"Error finding special price: {e}")
 
         try:
+            await page.wait_for_selector("div.prices div.regular-price", timeout=element_timeout)
             regular_price = await page.query_selector("div.prices div.regular-price")
             regular_price_text = await regular_price.inner_text() if regular_price else None
         except Exception as e:

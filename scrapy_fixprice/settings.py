@@ -52,12 +52,20 @@ TELNETCONSOLE_ENABLED = False
 # DOWNLOADER_MIDDLEWARES = {
 #    "scrapy.middlewares.ScrapyFixpriceDownloaderMiddleware": 543,
 # }
+DOWNLOAD_HANDLERS = {
+    "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+    "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+}
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
 # EXTENSIONS = {
 #    "scrapy.extensions.telnet.TelnetConsole": None,
 # }
+EXTENSIONS = {
+    "scrapy.extensions.memusage.MemoryUsage": None,
+    "scrapy_playwright.memusage.ScrapyPlaywrightMemoryUsageExtension": 0,
+}
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
@@ -98,4 +106,10 @@ FEEDS = {
         'fields': None,
         'indent': 4,
     },
+}
+
+PLAYWRIGHT_BROWSER_TYPE = "firefox"
+PLAYWRIGHT_LAUNCH_OPTIONS = {
+    "headless": False,
+    "timeout": 20 * 1000,  # 20 seconds
 }

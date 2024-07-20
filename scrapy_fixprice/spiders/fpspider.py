@@ -16,9 +16,9 @@ logging.basicConfig(
 class MySpider(scrapy.Spider):
     name = "fpspider"
     start_urls = [
-        # "https://fix-price.com/catalog/produkty-i-napitki/konditerskie-izdeliya"
+        "https://fix-price.com/catalog/produkty-i-napitki/konditerskie-izdeliya",
         "https://fix-price.com/catalog/kosmetika-i-gigiena/ukhod-za-polostyu-rta",
-        # "https://fix-price.com/catalog/sad-i-ogorod/tovary-dlya-rassady-i-semena",
+        "https://fix-price.com/catalog/sad-i-ogorod/tovary-dlya-rassady-i-semena",
     ]
 
     def start_requests(self):

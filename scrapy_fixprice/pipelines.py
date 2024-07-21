@@ -6,7 +6,6 @@ import json
 import os
 
 # useful for handling different item types with a single interface
-from itemadapter import ItemAdapter
 
 
 class MultiFilePipeline:
@@ -30,7 +29,3 @@ class MultiFilePipeline:
         line = json.dumps(dict(item)) + "\n"
         self.files[file_name].write(line)
         return item
-
-    def format_item(self, item):
-        import json
-        return json.dumps(item)

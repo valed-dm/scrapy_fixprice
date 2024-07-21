@@ -1,6 +1,7 @@
 import logging
 import time
 
+import playwright
 import scrapy
 from playwright.async_api import Page
 from scrapy_playwright.page import PageMethod
@@ -9,46 +10,44 @@ logging.basicConfig(
     filename='scrapy_spider.log',
     filemode='w',  # Overwrite the log file each run
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.DEBUG
 )
 
 
 class MySpider(scrapy.Spider):
     name = "fpspider"
     start_urls = [
-        "https://fix-price.com/catalog/produkty-i-napitki/konditerskie-izdeliya",
+        # "https://fix-price.com/catalog/produkty-i-napitki/konditerskie-izdeliya",
         "https://fix-price.com/catalog/kosmetika-i-gigiena/ukhod-za-polostyu-rta",
-        "https://fix-price.com/catalog/sad-i-ogorod/tovary-dlya-rassady-i-semena",
+        # "https://fix-price.com/catalog/sad-i-ogorod/tovary-dlya-rassady-i-semena",
     ]
+    # custom_settings = {
+    #     'RETRY_TIMES': 3,
+    # }
 
     def start_requests(self):
         for url in self.start_urls:
             yield scrapy.Request(
                 url=url,
                 callback=self.parse,
-                meta={
-                    "playwright": True,
-                    "playwright_include_page": True,
-                    "playwright_page_methods": [
-                        # PageMethod('route', "**/*.{png,jpg,jpeg,gif}", lambda route: route.abort()),
-                        # PageMethod('route', self.block_trackers),
-                        # PageMethod('goto', url),
-                    ],
-                },
-                # meta=dict(
-                #     playwright=True,
-                #     playwright_include_page=True,
-                #     playwright_page_methods=[
-                #         # PageMethod('route', "**/*.{png,jpg,jpeg,gif}", lambda route: route.abort()),
-                #         # PageMethod('route', self.block_trackers),
-                #         # PageMethod('goto', url),
-                #     ]
-                # ),
+                meta=dict(
+                    playwright=True,
+                    playwright_include_page=True,
+                    playwright_page_methods=[
+                        # PageMethod('route', "**/*.{png,jpg,jpeg,gif}", self.abort_images),
+                        # PageMethod('route', "**/*", self.block_trackers),
+                        PageMethod('goto', url, wait_until="networkidle", timeout=60000),
+                        # PageMethod('wait_for_load_state', 'networkidle', timeout=60000)
+                    ]
+                ),
                 errback=self.errback_close_page,
             )
 
     async def parse(self, response):
         page: Page = response.meta["playwright_page"]
+        # Capture a screenshot for debugging
+        await page.screenshot(path="screenshot.png")
+
         products = response.css("div.product__wrapper")
         for product in products:
             pid = product.css("div.product.one-product-in-row::attr(id)").get()
@@ -72,7 +71,7 @@ class MySpider(scrapy.Spider):
             )
 
     async def parse_details(self, response):
-        element_timeout = 10000
+        element_timeout = 50000
 
         page: Page = response.meta["playwright_page"]
         # await page.wait_for_selector("div.product__wrapper", timeout=element_timeout * 2)
@@ -178,13 +177,25 @@ class MySpider(scrapy.Spider):
         }
 
     async def errback_close_page(self, failure):
+        self.logger.error(repr(failure))
+        if failure.check(playwright._impl._errors.Error):
+            self.logger.error('Playwright error: %s', failure.value)
+            # if failure.request.meta['retry_times'] < self.custom_settings['RETRY_TIMES']:
+            #     self.logger.info('Retrying %s' % failure.request.url)
+            #     return failure.request.copy()
+
         page: Page = failure.request.meta.get("playwright_page")
         if page:
+            self.logger.info("Closing page due to error")
+            self.crawler.engine.close_spider(self, "spider_error")
             await page.close()
+
+    async def abort_images(self, route):
+        await route.abort()
 
     async def block_trackers(self, route):
         url = route.request.url
-        if any(tracker in str(url) for tracker in [
+        if any(tracker in route.request.url for tracker in [
             # "google-analytics.com",
             # "googletagmanager.com",
             # "facebook.net",

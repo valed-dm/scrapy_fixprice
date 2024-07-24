@@ -53,6 +53,33 @@ class MySpider(scrapy.Spider):
         page: Page = response.meta["playwright_page"]
         await stealth_async(page)
 
+        # Click the "No" button on the city confirmation modal using the button text
+        await page.click("button:has-text('Нет')")
+
+        # Click on the span element with class 'geo'
+        await page.click("span.geo")
+
+        # Wait for the modal to appear and ensure it's fully loaded
+        await page.wait_for_selector("#modal", state='visible')
+
+        # Type 'Екатеринбург' into the search input
+        await page.fill("input[data-test='currentCity']", "Екатеринбург")
+
+        # Wait for the city to appear in the list
+        await page.wait_for_selector("div.list div.city:text('Екатеринбург')")
+
+        # Scroll the element into view and ensure it's not obstructed
+        city_element = page.locator("div.list div.city:has-text('Екатеринбург')")
+        await city_element.scroll_into_view_if_needed()
+        await city_element.wait_for(state='visible')
+
+        # Force the click action
+        await city_element.click(force=True)
+
+        # Pause for debugging
+        # print("Pausing for debugging. Open the browser window to inspect the pop-up.")
+        # await page.pause()
+
         # Capture a screenshot
         # await page.screenshot(path="screenshot.png")
 

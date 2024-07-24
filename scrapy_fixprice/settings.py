@@ -26,15 +26,17 @@ FAKEUSERAGENT_PROVIDERS = [
 ROBOTSTXT_OBEY = False
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
-CONCURRENT_REQUESTS = 16
+CONCURRENT_REQUESTS = 32
 
 # Configure a delay for requests for the same website (default: 0)
 # See https://docs.scrapy.org/en/latest/topics/settings.html#download-delay
 # See also autothrottle settings and docs
-# DOWNLOAD_DELAY = 3
+DOWNLOAD_DELAY = 1.0
+RANDOMIZE_DOWNLOAD_DELAY = True
+
 # The download delay setting will honor only one of:
-CONCURRENT_REQUESTS_PER_DOMAIN = 8
-CONCURRENT_REQUESTS_PER_IP = 8
+CONCURRENT_REQUESTS_PER_DOMAIN = 16
+CONCURRENT_REQUESTS_PER_IP = 16
 
 # Disable Telnet Console (enabled by default)
 TELNETCONSOLE_ENABLED = False
@@ -53,9 +55,26 @@ TELNETCONSOLE_ENABLED = False
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
+
+# Enable the proxy middleware
 # DOWNLOADER_MIDDLEWARES = {
-#    "scrapy.middlewares.ScrapyFixpriceDownloaderMiddleware": 543,
+#     'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware': 1,
+#     'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
+#     'scrapy_user_agents.middlewares.RandomUserAgentMiddleware': 400,
+#     'scrapy_proxy_pool.middlewares.ProxyPoolMiddleware': 410,
+#     'scrapy_proxy_pool.middlewares.BanDetectionMiddleware': 420,
 # }
+DOWNLOADER_MIDDLEWARES = {
+    # "scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware": None,
+    "scrapy.downloadermiddlewares.useragent.UserAgentMiddleware": None,
+    "scrapy.downloadermiddlewares.retry.RetryMiddleware": 90,
+    # "scrapy_fixprice.middlewares.ProxyMiddleware": 100,
+    "scrapy_user_agents.middlewares.RandomUserAgentMiddleware": 400,
+}
+# DOWNLOADER_MIDDLEWARES.update({
+#     "scrapy_fixprice.middlewares.ProxyMiddleware": 543,
+# })
+
 DOWNLOAD_HANDLERS = {
     "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
     "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
@@ -73,9 +92,10 @@ EXTENSIONS = {
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-# ITEM_PIPELINES = {
-#    "scrapy_fixprice.pipelines.MultiFilePipeline": 300,
-# }
+ITEM_PIPELINES = {
+    "scrapy_fixprice.pipelines.ItemFilterPipeline": 1,
+    "scrapy_fixprice.pipelines.MultiFilePipeline": 2,
+}
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
@@ -90,11 +110,13 @@ AUTOTHROTTLE_TARGET_CONCURRENCY = 1.0
 # Enable showing throttling stats for every response received:
 AUTOTHROTTLE_DEBUG = False
 
-DOWNLOAD_DELAY = 2
-RANDOMIZE_DOWNLOAD_DELAY = True
-
 # Disable cookies (enabled by default)
 COOKIES_ENABLED = False
+
+# Proxy pool settings
+PROXY_POOL_ENABLED = True
+PROXY_POOL_PAGE_RETRY_TIMES = 3
+PROXY_POOL_CLOSE_SPIDER = False
 
 # Retry settings
 RETRY_ENABLED = True
@@ -111,7 +133,8 @@ RETRY_TIMES = 10
 # Set settings whose default value is deprecated to a future-proof value
 REQUEST_FINGERPRINTER_IMPLEMENTATION = "2.7"
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
-# FEED_EXPORT_ENCODING = "utf-8"
+FEED_EXPORT_ENCODING = "utf-8"
+
 FEEDS = {
     'output.jsonl': {
         'format': 'jsonlines',
@@ -121,13 +144,29 @@ FEEDS = {
         'indent': 4,
     },
 }
-# Output directory for the JSON files
-# FEED_URI = './output'
 
-PLAYWRIGHT_BROWSER_TYPE = "firefox"
+# ScraperAPI settings
+# SCRAPERAPI_KEY = 'd719fa90954daf1487b4148425e1490f'  # Replace with your ScraperAPI key
+
+# Bright Data settings
+# BRIGHTDATA_PROXY = 'http://brd-customer-hl_6f43352b-zone-datacenter_proxy1:nbfja0tg2dnj@brd.superproxy.io:22225'
+
+# Webshare credentials
+# WEBSHARE_API_KEY = "0g2afd8373721xvegcz88h4q7zqtexmfz3jtlvv3"
+# WEBSHARE_API_URL = "https://proxy.webshare.io/api/proxy/list/"
+
+# Proxy settings
+PROXY_USERNAME = "hjgjyxnh-rotate"
+PROXY_PASSWORD = "o4kgivvegm5n"
+DOMAIN_NAME = "p.webshare.io"
+PROXY_PORT = 80
+
+PLAYWRIGHT_BROWSER_TYPE = "webkit"
 PLAYWRIGHT_LAUNCH_OPTIONS = {
     "headless": False,
-    'proxy': {
-        'server': 'http://proxyserver:port',
-    },
+    # "proxy": {
+    #     "server": f"http://{DOMAIN_NAME}:{PROXY_PORT}",
+    #     "username": PROXY_USERNAME,
+    #     "password": PROXY_PASSWORD,
+    # },
 }

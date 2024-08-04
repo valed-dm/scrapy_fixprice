@@ -1,12 +1,7 @@
+import scrapy
+from fake_useragent import UserAgent
 import logging
 import time
-
-import playwright
-import scrapy
-from playwright.async_api import Page
-from playwright_stealth import stealth_async
-from scrapy_playwright.page import PageMethod
-from fake_useragent import UserAgent
 
 logging.basicConfig(
     filename='scrapy_spider.log',
@@ -33,56 +28,10 @@ class MySpider(scrapy.Spider):
             yield scrapy.Request(
                 url=url,
                 callback=self.parse,
-                headers={'User-Agent': self.user_agent.random},
-                meta=dict(
-                    playwright=True,
-                    playwright_include_page=True,
-                    playwright_page_methods=[
-                        PageMethod('route', "**/*.{png,jpg,jpeg,gif}", self.abort_images_and_popups),
-                        PageMethod('route', "**/*", self.block_trackers),
-                        PageMethod('on', 'dialog', self.handle_dialog),
-                        # PageMethod('wait_for_timeout', 5000),
-                        # PageMethod('wait_for_load_state', 'networkidle', timeout=60000),
-                        # PageMethod('goto', url, wait_until="networkidle", timeout=60000),
-                    ]
-                ),
-                errback=self.errback_close_page,
+                headers={'User-Agent': self.user_agent.random}
             )
 
-    async def parse(self, response):
-        page: Page = response.meta["playwright_page"]
-        await stealth_async(page)
-
-        # Click the "No" button on the city confirmation modal using the button text
-        await page.click("button:has-text('Нет')")
-
-        # Click on the span element with class 'geo'
-        await page.click("span.geo")
-
-        # Wait for the modal to appear and ensure it's fully loaded
-        await page.wait_for_selector("#modal", state='visible')
-
-        # Type 'Екатеринбург' into the search input
-        await page.fill("input[data-test='currentCity']", "Екатеринбург")
-
-        # Wait for the city to appear in the list
-        await page.wait_for_selector("div.list div.city:text('Екатеринбург')")
-
-        # Scroll the element into view and ensure it's not obstructed
-        city_element = page.locator("div.list div.city:has-text('Екатеринбург')")
-        await city_element.scroll_into_view_if_needed()
-        await city_element.wait_for(state='visible')
-
-        # Force the click action
-        await city_element.click(force=True)
-
-        # Pause for debugging
-        # print("Pausing for debugging. Open the browser window to inspect the pop-up.")
-        # await page.pause()
-
-        # Capture a screenshot
-        # await page.screenshot(path="screenshot.png")
-
+    def parse(self, response):
         # Extract item data on the catalog page
         products = response.css("div.product__wrapper")
         for product in products:
@@ -95,20 +44,11 @@ class MySpider(scrapy.Spider):
                 url=response.urljoin(link),
                 callback=self.parse_details,
                 meta={
-                    "playwright": True,
-                    "playwright_include_page": True,
                     "RPC": pid[2:],
                     "link": link,
                     "title": title,
                     "variants": vcount if vcount else None,
-                    "playwright_page_methods": [
-                        PageMethod('route', "**/*.{png,jpg,jpeg,gif}", self.abort_images_and_popups),
-                        PageMethod('route', "**/*", self.block_trackers),
-                        PageMethod('on', 'dialog', self.handle_dialog),
-                        # PageMethod('wait_for_load_state', 'networkidle', timeout=60000)
-                    ],
-                },
-                errback=self.errback_close_page,
+                }
             )
 
         # Handle pagination
@@ -119,66 +59,18 @@ class MySpider(scrapy.Spider):
             if next_page_link:
                 yield scrapy.Request(
                     url=response.urljoin(next_page_link),
-                    callback=self.parse,
-                    meta={
-                        "playwright": True,
-                        "playwright_include_page": True,
-                        "playwright_page_methods": [
-                            PageMethod('route', "**/*.{png,jpg,jpeg,gif}", self.abort_images_and_popups),
-                            PageMethod('route', "**/*", self.block_trackers),
-                            PageMethod('on', 'dialog', self.handle_dialog),
-                        ],
-                    },
-                    errback=self.errback_close_page,
+                    callback=self.parse
                 )
 
-        await page.close()
-
-    async def parse_details(self, response):
-        element_timeout = 60000
-        page = response.meta["playwright_page"]
-        await stealth_async(page)
+    def parse_details(self, response):
+        # element_timeout = 60000
 
         try:
-            try:
-                await page.wait_for_selector("div.properties a[href*='products?brand=']", timeout=element_timeout)
-                brand = await page.query_selector("div.properties a[href*='products?brand=']")
-                brand_text = await brand.inner_text() if brand else "Unknown brand"
-            except Exception as e:
-                brand_text = None
-                self.logger.error(f"Error finding brand: {e}")
-
-            try:
-                await page.wait_for_selector("div.product-details div.description", timeout=element_timeout)
-                description = await page.query_selector("div.product-details div.description")
-                description_text = await description.inner_text() if description else None
-            except Exception as e:
-                description_text = None
-                self.logger.error(f"Error finding description: {e}")
-
-            try:
-                await page.wait_for_selector("div.product-images div.sticker", timeout=element_timeout)
-                marketing_tag = await page.query_selector("div.product-images div.sticker")
-                marketing_tag_text = await marketing_tag.inner_text() if marketing_tag else None
-            except Exception as e:
-                marketing_tag_text = None
-                self.logger.error(f"Error finding marketing tag: {e}")
-
-            try:
-                await page.wait_for_selector("div.prices div.special-price", timeout=element_timeout)
-                special_price = await page.query_selector("div.prices div.special-price")
-                special_price_text = await special_price.inner_text() if special_price else None
-            except Exception as e:
-                special_price_text = None
-                self.logger.error(f"Error finding special price: {e}")
-
-            try:
-                await page.wait_for_selector("div.prices div.regular-price", timeout=element_timeout)
-                regular_price = await page.query_selector("div.prices div.regular-price")
-                regular_price_text = await regular_price.inner_text() if regular_price else None
-            except Exception as e:
-                regular_price_text = None
-                self.logger.error(f"Error finding regular price: {e}")
+            brand_text = response.css("div.properties a[href*='products?brand=']::text").get(default="Unknown brand")
+            description_text = response.css("div.product-details div.description::text").get()
+            marketing_tag_text = response.css("div.product-images div.sticker::text").get()
+            special_price_text = response.css("div.prices div.special-price::text").get()
+            regular_price_text = response.css("div.prices div.regular-price::text").get()
 
             special_price_value = None
             regular_price_value = None
@@ -239,44 +131,8 @@ class MySpider(scrapy.Spider):
                 "variants": response.meta.get("variants"),
             }
 
-        finally:
-            await page.close()
+        except Exception as e:
+            self.logger.error(f"Error parsing details: {e}")
 
-    async def errback_close_page(self, failure):
+    def errback_close_page(self, failure):
         self.logger.error(repr(failure))
-        if failure.check(playwright._impl._errors.Error):
-            self.logger.error('Playwright error: %s', failure.value)
-        page: Page = failure.request.meta.get("playwright_page")
-        if page:
-            self.logger.info("Closing page due to error")
-            self.crawler.engine.close_spider(self, "spider_error")
-
-            await page.close()
-
-    async def abort_images_and_popups(self, route, request):
-        if request.resource_type in ["image", "media", "stylesheet", "font"]:
-            await route.abort()
-        elif any(keyword in request.url for keyword in ["popup", "modal", "advertisement", "ads"]):
-            await route.abort()
-        else:
-            await route.continue_()
-
-    async def block_trackers(self, route, request):
-        blocked_resources = [
-            "top-fwz1.mail.ru",
-            "mc.yandex.ru",
-            "vk.com",
-            "img.fix-price.com",
-            "secure.usedesk.ru",
-            "cdn-cgi",
-        ]
-        keywords = ["tracker", "analytics", "ads", "doubleclick", "googletagmanager"]
-
-        if any(resource in route.request.url for resource in blocked_resources) or \
-                any(keyword in route.request.url for keyword in keywords):
-            await route.abort()
-        else:
-            await route.continue_()
-
-    async def handle_dialog(self, dialog):
-        await dialog.dismiss()

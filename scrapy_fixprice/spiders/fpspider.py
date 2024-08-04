@@ -56,11 +56,22 @@ class MySpider(scrapy.Spider):
         # Click the "No" button on the city confirmation modal using the button text
         await page.click("button:has-text('Нет')")
 
+        # Wait for the interfering modal to appear and then close it if present
+        try:
+            await page.wait_for_selector("div.modal-outer", state='visible', timeout=5000)
+            await page.click("div.modal-outer button.close")
+        except TimeoutError:
+            print("Interfering modal not found or already closed")
+
         # Click on the span element with class 'geo'
         await page.click("span.geo")
 
-        # Wait for the modal to appear and ensure it's fully loaded
-        await page.wait_for_selector("#modal", state='visible')
+        # Wait for the city selection modal to appear with the specific id and class
+        await page.wait_for_selector("#modal.full-smallest-adaptive", state='visible')
+
+        # Pause for debugging
+        # print("Pausing for debugging. Open the browser window to inspect the pop-up.")
+        # await page.pause()
 
         # Type 'Екатеринбург' into the search input
         await page.fill("input[data-test='currentCity']", "Екатеринбург")

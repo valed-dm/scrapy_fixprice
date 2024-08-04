@@ -51,6 +51,7 @@ requests-file==2.1.0
 Scrapy==2.11.2
 scrapy-playwright==0.0.40
 scrapy-proxy-pool==0.1.9
+scrapy-splash==0.9.0
 scrapy-user-agents==0.1.1
 selenium==4.22.0
 service-identity==24.1.0

@@ -52,6 +52,9 @@ TELNETCONSOLE_ENABLED = False
 # SPIDER_MIDDLEWARES = {
 #    "scrapy.middlewares.ScrapyFixpriceSpiderMiddleware": 543,
 # }
+SPIDER_MIDDLEWARES = {
+    'scrapy_splash.SplashDeduplicateArgsMiddleware': 100,
+}
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
@@ -70,25 +73,16 @@ DOWNLOADER_MIDDLEWARES = {
     "scrapy.downloadermiddlewares.retry.RetryMiddleware": 90,
     # "scrapy_fixprice.middlewares.ProxyMiddleware": 100,
     "scrapy_user_agents.middlewares.RandomUserAgentMiddleware": 400,
+    'scrapy_splash.SplashCookiesMiddleware': 723,
+    'scrapy_splash.SplashMiddleware': 725,
+    'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware': 810,
 }
-# DOWNLOADER_MIDDLEWARES.update({
-#     "scrapy_fixprice.middlewares.ProxyMiddleware": 543,
-# })
-
-# DOWNLOAD_HANDLERS = {
-#     "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
-#     "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
-# }
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
 # EXTENSIONS = {
 #    "scrapy.extensions.telnet.TelnetConsole": None,
 # }
-EXTENSIONS = {
-    "scrapy.extensions.memusage.MemoryUsage": None,
-    "scrapy_playwright.memusage.ScrapyPlaywrightMemoryUsageExtension": 0,
-}
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
@@ -144,6 +138,13 @@ FEEDS = {
         'indent': 4,
     },
 }
+
+SPLASH_URL = 'http://localhost:8050'
+DUPEFILTER_CLASS = 'scrapy_fixprice.dupefilter.CustomDupeFilter'
+DUPEFILTER_DEBUG = True
+HTTPCACHE_DIR = 'httpcache'
+# HTTPCACHE_STORAGE = 'scrapy_splash.SplashAwareFSCacheStorage'
+
 
 # ScraperAPI settings
 # SCRAPERAPI_KEY = 'd719fa90954daf1487b4148425e1490f'  # Replace with your ScraperAPI key

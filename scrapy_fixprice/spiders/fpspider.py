@@ -2,6 +2,7 @@ import scrapy
 from fake_useragent import UserAgent
 import logging
 import time
+from scrapy_splash import SplashRequest
 
 logging.basicConfig(
     filename='scrapy_spider.log',
@@ -25,10 +26,11 @@ class MySpider(scrapy.Spider):
 
     def start_requests(self):
         for url in self.start_urls:
-            yield scrapy.Request(
+            yield SplashRequest(
                 url=url,
                 callback=self.parse,
-                headers={'User-Agent': self.user_agent.random}
+                headers={'User-Agent': self.user_agent.random},
+                args={'wait': 5}
             )
 
     def parse(self, response):
@@ -40,7 +42,7 @@ class MySpider(scrapy.Spider):
             title = product.css("a.title::text").get()
             vcount = product.css("div.variants-count::text").get()
 
-            yield scrapy.Request(
+            yield SplashRequest(
                 url=response.urljoin(link),
                 callback=self.parse_details,
                 meta={
@@ -48,7 +50,8 @@ class MySpider(scrapy.Spider):
                     "link": link,
                     "title": title,
                     "variants": vcount if vcount else None,
-                }
+                },
+                args={'wait': 10}
             )
 
         # Handle pagination
@@ -57,13 +60,13 @@ class MySpider(scrapy.Spider):
             next_page = int(current_page) + 1
             next_page_link = response.css(f"a[data-page='{next_page}']::attr(href)").get()
             if next_page_link:
-                yield scrapy.Request(
+                yield SplashRequest(
                     url=response.urljoin(next_page_link),
-                    callback=self.parse
+                    callback=self.parse,
+                    args={'wait': 20}
                 )
 
     def parse_details(self, response):
-        # element_timeout = 60000
 
         try:
             brand_text = response.css("div.properties a[href*='products?brand=']::text").get(default="Unknown brand")
@@ -133,6 +136,3 @@ class MySpider(scrapy.Spider):
 
         except Exception as e:
             self.logger.error(f"Error parsing details: {e}")
-
-    def errback_close_page(self, failure):
-        self.logger.error(repr(failure))

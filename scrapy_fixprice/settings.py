@@ -75,10 +75,10 @@ DOWNLOADER_MIDDLEWARES = {
 #     "scrapy_fixprice.middlewares.ProxyMiddleware": 543,
 # })
 
-DOWNLOAD_HANDLERS = {
-    "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
-    "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
-}
+# DOWNLOAD_HANDLERS = {
+#     "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+#     "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+# }
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
@@ -114,9 +114,9 @@ AUTOTHROTTLE_DEBUG = False
 COOKIES_ENABLED = False
 
 # Proxy pool settings
-PROXY_POOL_ENABLED = True
-PROXY_POOL_PAGE_RETRY_TIMES = 3
-PROXY_POOL_CLOSE_SPIDER = False
+# PROXY_POOL_ENABLED = True
+# PROXY_POOL_PAGE_RETRY_TIMES = 3
+# PROXY_POOL_CLOSE_SPIDER = False
 
 # Retry settings
 RETRY_ENABLED = True
@@ -156,17 +156,17 @@ FEEDS = {
 # WEBSHARE_API_URL = "https://proxy.webshare.io/api/proxy/list/"
 
 # Proxy settings
-PROXY_USERNAME = "hjgjyxnh-rotate"
-PROXY_PASSWORD = "o4kgivvegm5n"
-DOMAIN_NAME = "p.webshare.io"
-PROXY_PORT = 80
+# PROXY_USERNAME = "hjgjyxnh-rotate"
+# PROXY_PASSWORD = "o4kgivvegm5n"
+# DOMAIN_NAME = "p.webshare.io"
+# PROXY_PORT = 80
 
-PLAYWRIGHT_BROWSER_TYPE = "webkit"
-PLAYWRIGHT_LAUNCH_OPTIONS = {
-    "headless": False,
-    # "proxy": {
-    #     "server": f"http://{DOMAIN_NAME}:{PROXY_PORT}",
-    #     "username": PROXY_USERNAME,
-    #     "password": PROXY_PASSWORD,
-    # },
-}
+# PLAYWRIGHT_BROWSER_TYPE = "webkit"
+# PLAYWRIGHT_LAUNCH_OPTIONS = {
+#     "headless": False,
+#     "proxy": {
+#         "server": f"http://{DOMAIN_NAME}:{PROXY_PORT}",
+#         "username": PROXY_USERNAME,
+#         "password": PROXY_PASSWORD,
+#     },
+# }

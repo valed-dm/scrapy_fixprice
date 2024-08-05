@@ -30,7 +30,7 @@ class MySpider(scrapy.Spider):
                 url=url,
                 callback=self.parse,
                 headers={'User-Agent': self.user_agent.random},
-                args={'wait': 5}
+                args={'wait': 15}
             )
 
     def parse(self, response):
@@ -51,7 +51,7 @@ class MySpider(scrapy.Spider):
                     "title": title,
                     "variants": vcount if vcount else None,
                 },
-                args={'wait': 10}
+                args={'wait': 15}
             )
 
         # Handle pagination
@@ -63,7 +63,7 @@ class MySpider(scrapy.Spider):
                 yield SplashRequest(
                     url=response.urljoin(next_page_link),
                     callback=self.parse,
-                    args={'wait': 20}
+                    args={'wait': 15}
                 )
 
     def parse_details(self, response):
